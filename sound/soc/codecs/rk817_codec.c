@@ -24,10 +24,23 @@
 #include <sound/core.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/tlv.h>
 #include "rk817_codec.h"
 
 static int dbg_enable;
+static unsigned int codec_mute = 1;
+static unsigned int headset_status = 0;
+static struct gpio_desc *speak_gpiod;
 module_param_named(dbg_level, dbg_enable, int, 0644);
+
+static const DECLARE_TLV_DB_SCALE(vol_tlv, -9500, 37, 0);
+
+/*
+ * DADC L/R MIC setting
+ * defined: Use L/R as inputs simultaneously.
+ * not defined: Use L/R as inputs respectively.
+ */
+#define RK817_CODEC_ONE_MIC
 
 #define DBG(args...) \
 	do { \
@@ -244,6 +257,11 @@ static int rk817_codec_ctl_gpio(struct rk817_codec_priv *rk817,
 		msleep(rk817->hp_mute_delay);
 	}
 
+	if (codec_mute == 0)
+		gpiod_set_value(speak_gpiod, (headset_status == 0) ? 1:0);
+	else
+		gpiod_set_value(speak_gpiod, 0);
+
 	return 0;
 }
 
@@ -342,6 +360,14 @@ static struct rk817_reg_val_typ capture_power_down_list[] = {
 
 #define RK817_CODEC_CAPTURE_POWER_DOWN_LIST_LEN \
 	ARRAY_SIZE(capture_power_down_list)
+
+void headset_adc_set_status(int status)
+{
+	headset_status = status;
+	rk817_codec_ctl_gpio(NULL, 0, 1);
+}
+
+EXPORT_SYMBOL_GPL(headset_adc_set_status);
 
 static int rk817_codec_power_up(struct snd_soc_codec *codec, int type)
 {
@@ -447,7 +473,11 @@ static const char * const rk817_playback_path_mode[] = {
 	"RING_SPK", "RING_HP", "RING_HP_NO_MIC", "RING_SPK_HP"}; /* 7-10 */
 
 static const char * const rk817_capture_path_mode[] = {
+#ifdef RK817_CODEC_ONE_MIC
+	"MIC OFF", "Main Mic"};
+#else
 	"MIC OFF", "Main Mic", "Hands Free Mic", "BT Sco Mic"};
+#endif
 
 static const char * const rk817_call_path_mode[] = {
 	"OFF", "RCV", "SPK", "HP", "HP_NO_MIC", "BT"}; /* 0-5 */
@@ -465,6 +495,32 @@ static SOC_ENUM_SINGLE_DECL(rk817_call_path_type,
 
 static SOC_ENUM_SINGLE_DECL(rk817_modem_input_type,
 	0, 0, rk817_modem_input_mode);
+
+static int rk817_save_volume(struct rk817_codec_priv *rk817,
+				   struct snd_soc_codec *codec, long int pre_path)
+{
+	switch (pre_path) {
+	case RCV:
+	case SPK_PATH:
+	case RING_SPK:
+		rk817->spk_volume = snd_soc_read(codec, RK817_CODEC_DDAC_VOLL);
+		break;
+	case HP_PATH:
+	case HP_NO_MIC:
+	case RING_HP:
+	case RING_HP_NO_MIC:
+		rk817->hp_volume = snd_soc_read(codec, RK817_CODEC_DDAC_VOLL);
+		break;
+	case SPK_HP:
+	case RING_SPK_HP:
+		rk817->hp_volume = snd_soc_read(codec, RK817_CODEC_DDAC_VOLL);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
 
 static int rk817_playback_path_get(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
@@ -503,6 +559,8 @@ static int rk817_playback_path_put(struct snd_kcontrol *kcontrol,
 	else
 		clk_disable_unprepare(rk817->mclk);
 
+	rk817_save_volume(rk817, codec, pre_path);
+
 	switch (rk817->playback_path) {
 	case OFF:
 		if (pre_path != OFF && (pre_path != HP_PATH &&
@@ -522,7 +580,7 @@ static int rk817_playback_path_put(struct snd_kcontrol *kcontrol,
 			/* power on dac ibias/l/r */
 			snd_soc_write(codec, RK817_CODEC_ADAC_CFG1,
 				      PWD_DACBIAS_ON | PWD_DACD_ON |
-				      PWD_DACL_ON | PWD_DACR_ON);
+				      PWD_DACL_DOWN | PWD_DACR_DOWN);
 			/* CLASS D mode */
 			snd_soc_write(codec, RK817_CODEC_DDAC_MUTE_MIXCTL, 0x10);
 			/* CLASS D enable */
@@ -647,6 +705,7 @@ static int rk817_capture_path_put(struct snd_kcontrol *kcontrol,
 		if (pre_path == MIC_OFF)
 			rk817_codec_power_up(codec, RK817_CODEC_CAPTURE);
 
+#if !defined(RK817_CODEC_ONE_MIC)
 		if (rk817->adc_for_loopback) {
 			/* don't need to gain when adc use for loopback */
 			snd_soc_update_bits(codec, RK817_CODEC_AMIC_CFG0, 0xf, 0x0);
@@ -662,6 +721,7 @@ static int rk817_capture_path_put(struct snd_kcontrol *kcontrol,
 			snd_soc_update_bits(codec, RK817_CODEC_AMIC_CFG0,
 					    PWD_PGA_R_MASK, PWD_PGA_R_EN);
 		}
+#endif
 		break;
 	case HANDS_FREE_MIC:
 		if (pre_path == MIC_OFF)
@@ -698,6 +758,10 @@ static struct snd_kcontrol_new rk817_snd_path_controls[] = {
 
 	SOC_ENUM_EXT("Capture MIC Path", rk817_capture_path_type,
 		     rk817_capture_path_get, rk817_capture_path_put),
+
+	SOC_DOUBLE_R_RANGE_TLV("PCM", RK817_CODEC_DDAC_VOLL, RK817_CODEC_DDAC_VOLR, 0, 3, 255, 1, vol_tlv),
+
+	SOC_DOUBLE_R_TLV("Capture Volume", RK817_CODEC_DADC_VOLL, RK817_CODEC_DADC_VOLR, 0, 255, 1, vol_tlv),
 };
 
 static int rk817_set_dai_sysclk(struct snd_soc_dai *codec_dai,
@@ -775,6 +839,7 @@ static int rk817_digital_mute(struct snd_soc_dai *dai, int mute)
 	struct rk817_codec_priv *rk817 = snd_soc_codec_get_drvdata(codec);
 
 	DBG("%s %d\n", __func__, mute);
+	codec_mute = mute;
 	if (mute)
 		snd_soc_update_bits(codec, RK817_CODEC_DDAC_MUTE_MIXCTL,
 				    DACMT_ENABLE, DACMT_ENABLE);
@@ -1105,6 +1170,13 @@ static int rk817_platform_probe(struct platform_device *pdev)
 			__func__, ret);
 		goto err_;
 	}
+
+	speak_gpiod = devm_gpiod_get(&pdev->dev, "speak", GPIOD_OUT_LOW);
+	if (IS_ERR(speak_gpiod)) {
+		printk("%s() Can not read property speak-gpio\n", __FUNCTION__);
+		goto err_;
+	}
+	gpiod_set_value(speak_gpiod, 0);
 
 	return 0;
 err_:
