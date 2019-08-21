@@ -798,9 +798,11 @@
 		pwdn-gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;	/*GPIO2_A2 DVP_PDN0*/
 		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
 		//pinctrl-0 = <&cif_clkout>;
-		pinctrl-0 = <&pwdn_cam0 &mipi_rst>;
-		pinctrl-1 = <&cam0_default_pins>;
-		pinctrl-2 = <&cam0_sleep_pins>;
+		//pinctrl-0 = <&pwdn_cam0 &mipi_rst>;
+		
+		//pinctrl-0 = <&pwdn_cam0>;
+		//pinctrl-1 = <&cam0_default_pins>;
+		//pinctrl-2 = <&cam0_sleep_pins>;
 
 		avdd-supply = <&vcc_mipi>; /* GPIO1_C6 CIF_PWR  AGND*/
 		dovdd-supply = <&vcc_mipi>; /* GPIO1_C6 CIF_PWR  AGND */
@@ -826,9 +828,9 @@
 		pwdn-gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>;	/*GPIO2_A3 DVP_PDN0*/
 		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
 		//pinctrl-0 = <&cif_clkout>;
-		pinctrl-0 = <&pwdn_cam1>;
-		pinctrl-1 = <&cam0_default_pins>;
-		pinctrl-2 = <&cam0_sleep_pins>;
+	//	pinctrl-0 = <&pwdn_cam1>;
+		//pinctrl-1 = <&cam0_default_pins>;
+		//pinctrl-2 = <&cam0_sleep_pins>;
 
 		avdd-supply = <&vcc_mipi>; /* VCC28_MIPI */
 		dovdd-supply = <&vcc_mipi>; /* VCC18_MIPI */
@@ -999,11 +1001,11 @@
 &pinctrl {
 	cam0 {
                 cif_pwr: cif-pwr {
-                        rockchip,pins = <1 17 RK_FUNC_GPIO &pcfg_pull_down>;
+                        rockchip,pins = <1 23 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
 
                 dvp_pwr: dvp-pwr {
-                        rockchip,pins = <1 1 RK_FUNC_GPIO &pcfg_pull_down>;
+                        rockchip,pins = <1 22 RK_FUNC_GPIO &pcfg_pull_down>;
                 };
     };
 
@@ -1142,7 +1144,7 @@
 	cam_pins {
 		cam0_default_pins: cam0-default-pins {
 			rockchip,pins =
-				<4 27 RK_FUNC_GPIO &pcfg_pull_none>,
+		//		<4 27 RK_FUNC_GPIO &pcfg_pull_none>,
 				<2 11 RK_FUNC_3 &pcfg_pull_none>;
 		};
 
