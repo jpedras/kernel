@@ -263,6 +263,9 @@ static int innov1_lvds_power_on(struct rockchip_lvds *lvds)
 		/* set clock lane enable */
 		lvds_dsi_writel(lvds, MIPIC_PHY_RSTZ, m_PHY_ENABLE_CLK);
 	} else {
+		/* enable lvds lane */
+		lvds_writel(lvds, MIPIPHY_REG0, 0x01);
+
 		/* digital internal disable */
 		lvds_msk_reg(lvds, MIPIPHY_REGE1,
 			     m_DIG_INTER_EN, v_DIG_INTER_EN(0));

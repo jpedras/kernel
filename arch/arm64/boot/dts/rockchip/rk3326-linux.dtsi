@@ -44,7 +44,7 @@
 	compatible = "rockchip,linux", "rockchip,rk3326";
 
 	chosen {
-		bootargs = "earlycon=uart8250,mmio32,0xff160000 swiotlb=1 console=ttyFIQ0 root=PARTUUID=614e0000-0000 rootwait";
+		bootargs = "earlycon=uart8250,mmio32,0xff160000 swiotlb=1 console=ttyFIQ0 rw root=PARTUUID=614e0000-0000 rootwait";
 	};
 
 	fiq-debugger {
@@ -56,7 +56,7 @@
 		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
 		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&uart2m0_xfer>;
+		pinctrl-0 = <&uart2m1_xfer>;
 		status = "okay";
 	};
 
